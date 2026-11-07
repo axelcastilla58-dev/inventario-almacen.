@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Almacén Pro - Inventario y Picking</title>
+    <!-- Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-100 text-slate-800 pb-20">
+
+    <!-- Header Principal -->
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-boxes-stacked text-xl"></i>
+                <h1 class="font-bold text-lg tracking-wide">Almacén Pro</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="sincronizarDatos()" id="btnSync" class="p-2 hover:bg-indigo-700 rounded-full transition" title="Sincronizar">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor Principal de Vistas -->
+    <main class="max-w-md mx-auto p-4">
+        
+        <!-- VISTA 1: STOCK -->
+        <section id="vista-stock" class="view-section">
+            <div class="mb-4">
+                <input type="text" id="buscarStock" placeholder="Buscar por código o descripción..." oninput="filtrarStock()"
+                    class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm text-sm">
+            </div>
+            <div id="listaStock" class="space-y-3">
+                <!-- Se llena dinámicamente -->
+                <div class="text-center py-10 text-slate-400">
+                    <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+                    <p class="text-sm">Cargando inventario...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA 2: MOVIMIENTOS (Entrada, Salida, Conteo) -->
+        <section id="vista-movimiento" class="view-section hidden">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="font-semibold text-base mb-3 text-indigo-600 border-b pb-2"><i class="fa-solid fa-right-left mr-2"></i>Registrar Movimiento</h2>
+                
+                <form id="formMovimiento" onsubmit="enviarMovimiento(event)" class="space-y-3 text-sm">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Tipo de Movimiento</label>
+                        <select id="tipoMov" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white" onchange="actualizarCamposMov()">
+                            <option value="Conteo Cíclico">Conteo Cíclico</option>
+                            <option value="Entrada">Entrada de Stock</option>
+                            <option value="Salida">Salida / Picking</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Código del Material</label>
+                        <input type="text" id="codigoMov" required placeholder="Ej. 2200417" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Cantidad</label>
+                        <input type="number" id="cantidadMov" required placeholder="Ej. 10" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div id="campoUbicacionContainer">
+                        <label class="block font-medium text-slate-700 mb-1">Ubicación (Opcional)</label>
+                        <input type="text" id="ubicacionMov" placeholder="Ej. NAVE01-A08" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Usuario / Responsable</label>
+                        <input type="text" id="usuarioMov" required placeholder="Tu nombre" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <button type="submit" id="btnGuardarMov" class="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition shadow-md">
+                        Guardar Movimiento
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- VISTA 3: AGREGAR NUEVO MATERIAL -->
+        <section id="vista-agregar" class="view-section hidden">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="font-semibold text-base mb-3 text-indigo-600 border-b pb-2"><i class="fa-solid fa-plus-circle mr-2"></i>Agregar Nuevo Material</h2>
+                
+                <form id="formNuevo" onsubmit="enviarNuevoMaterial(event)" class="space-y-3 text-sm">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Código del Material</label>
+                        <input type="text" id="nuevoCodigo" required placeholder="Ej. 2200500" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Descripción</label>
+                        <input type="text" id="nuevaDescripcion" required placeholder="Descripción completa del ítem" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Stock Inicial</label>
+                        <input type="number" id="nuevoStock" required placeholder="Ej. 50" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Ubicación Inicial</label>
+                        <input type="text" id="nuevaUbicacion" required placeholder="Ej. NAVE02-B01" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">Responsable</label>
+                        <input type="text" id="nuevoUsuario" required placeholder="Tu nombre" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <button type="submit" id="btnGuardarNuevo" class="w-full bg-emerald-600 text-white py-2.5 rounded-lg font-medium hover:bg-emerald-700 transition shadow-md">
+                        Registrar Nuevo Material
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- VISTA 4: HISTORIAL -->
+        <section id="vista-historial" class="view-section hidden">
+            <div class="mb-3 flex justify-between items-center">
+                <h2 class="font-semibold text-sm text-slate-600">Últimos movimientos registrados</h2>
+                <button onclick="sincronizarDatos()" class="text-xs text-indigo-600 font-medium hover:underline">Actualizar</button>
+            </div>
+            <div id="listaHistorial" class="space-y-2">
+                <!-- Se llena dinámicamente -->
+                <div class="text-center py-10 text-slate-400">
+                    <p class="text-sm">Cargando historial...</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Barra de Navegación Inferior (Móvil) -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-50">
+        <div class="max-w-md mx-auto flex justify-around py-2">
+            <button onclick="cambiarVista('stock')" id="nav-stock" class="flex flex-col items-center text-indigo-600 transition flex-1">
+                <i class="fa-solid fa-box text-lg"></i>
+                <span class="text-[10px] mt-1 font-medium">Stock</span>
+            </button>
+            <button onclick="cambiarVista('movimiento')" id="nav-movimiento" class="flex flex-col items-center text-slate-400 transition flex-1">
+                <i class="fa-solid fa-right-left text-lg"></i>
+                <span class="text-[10px] mt-1 font-medium">Movimiento</span>
+            </button>
+            <button onclick="cambiarVista('agregar')" id="nav-agregar" class="flex flex-col items-center text-slate-400 transition flex-1">
+                <i class="fa-solid fa-plus-circle text-lg"></i>
+                <span class="text-[10px] mt-1 font-medium">Nuevo</span>
+            </button>
+            <button onclick="cambiarVista('historial')" id="nav-historial" class="flex flex-col items-center text-slate-400 transition flex-1">
+                <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+                <span class="text-[10px] mt-1 font-medium">Historial</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Scripts de Conexión -->
+    <script>
+        // URL de tu Google Apps Script configurada
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz0d7icaG4Jn9gVI-LscTT9UqYad_MgkXyIuiQlpql4i77W5Kfi7zDjnP8DpR74d3fO/exec";
+
+        let datosGlobalesStock = [];
+        let datosGlobalesHistorial = [];
+
+        // Cambiar entre pestañas
+        function cambiarVista(vista) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`vista-${vista}`).classList.remove('hidden');
+
+            ['stock', 'movimiento', 'agregar', 'historial'].forEach(v => {
+                const btn = document.getElementById(`nav-${v}`);
+                if (v === vista) {
+                    btn.classList.remove('text-slate-400');
+                    btn.classList.add('text-indigo-600');
+                } else {
+                    btn.classList.remove('text-indigo-600');
+                    btn.classList.add('text-slate-400');
+                }
+            });
+            window.scrollTo(0, 0);
+        }
+
+        // Cargar datos al abrir la app
+        window.onload = function() {
+            sincronizarDatos();
+        };
+
+        function sincronizarDatos() {
+            const btn = document.getElementById('btnSync');
+            btn.classList.add('fa-spin');
+
+            fetch(WEB_APP_URL)
+                .then(res => res.json())
+                .then(data => {
+                    datosGlobalesStock = data.inventario || [];
+                    datosGlobalesHistorial = data.historial || [];
+                    renderizarStock(datosGlobalesStock);
+                    renderizarHistorial(datosGlobalesHistorial);
+                    btn.classList.remove('fa-spin');
+                })
+                .catch(err => {
+                    console.error("Error al sincronizar:", err);
+                    btn.classList.remove('fa-spin');
+                    alert("Error de conexión con Google Sheets.");
+                });
+        }
+
+        function renderizarStock(lista) {
+            const contenedor = document.getElementById('listaStock');
+            if (lista.length === 0) {
+                contenedor.innerHTML = `<p class="text-center text-slate-400 py-8 text-sm">No hay materiales registrados.</p>`;
+                return;
+            }
+
+            contenedor.innerHTML = lista.map(item => `
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold text-indigo-600">${item.codigo || ''}</span>
+                            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"><i class="fa-solid fa-location-dot mr-1"></i>${item.ubicacion || 'Sin ubica'}</span>
+                        </div>
+                        <h3 class="font-medium text-sm text-slate-800 mt-1">${item.descripcion || ''}</h3>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-block bg-indigo-50 text-indigo-700 font-bold text-xs px-2.5 py-1 rounded-lg">
+                            Stock: ${item.cantidad || 0}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filtrarStock() {
+            const texto = document.getElementById('buscarStock').value.toLowerCase();
+            const filtrados = datosGlobalesStock.filter(item => 
+                (item.codigo && item.codigo.toLowerCase().includes(texto)) || 
+                (item.descripcion && item.descripcion.toLowerCase().includes(texto))
+            );
+            renderizarStock(filtrados);
+        }
+
+        function renderizarHistorial(lista) {
+            const contenedor = document.getElementById('listaHistorial');
+            if (lista.length === 0) {
+                contenedor.innerHTML = `<p class="text-center text-slate-400 py-8 text-sm">No hay movimientos recientes.</p>`;
+                return;
+            }
+
+            // Mostrar más recientes primero
+            const invertida = [...lista].reverse();
+
+            contenedor.innerHTML = invertida.slice(0, 30).map(h => `
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-xs">
+                    <div class="flex justify-between text-slate-500 mb-1">
+                        <span class="font-semibold text-indigo-600">${h.tipo || ''}</span>
+                        <span>${h.fecha || ''}</span>
+                    </div>
+                    <div class="font-medium text-slate-800">${h.codigo} - Cantidad: <span class="text-indigo-600 font-bold">${h.cantidad}</span></div>
+                    <div class="text-slate-500 mt-1 flex justify-between">
+                        <span>Ubicación: ${h.ubicacion || 'N/A'}</span>
+                        <span class="italic">Resp: ${h.usuario || 'Sistema'}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function enviarMovimiento(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnGuardarMov');
+            btn.disabled = true;
+            btn.innerText = "Registrando...";
+
+            const payload = {
+                tipo: document.getElementById('tipoMov').value,
+                codigo: document.getElementById('codigoMov').value.trim(),
+                cantidad: Number(document.getElementById('cantidadMov').value),
+                ubicacion: document.getElementById('ubicacionMov').value.trim(),
+                usuario: document.getElementById('usuarioMov').value.trim()
+            };
+
+            fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(res => {
+                alert("¡Movimiento registrado con éxito!");
+                document.getElementById('formMovimiento').reset();
+                btn.disabled = false;
+                btn.innerText = "Guardar Movimiento";
+                cambiarVista('stock');
+                sincronizarDatos();
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Error al registrar el movimiento.");
+                btn.disabled = false;
+                btn.innerText = "Guardar Movimiento";
+            });
+        }
+
+        function enviarNuevoMaterial(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnGuardarNuevo');
+            btn.disabled = true;
+            btn.innerText = "Registrando...";
+
+            const payload = {
+                tipo: "Nuevo Producto",
+                codigo: document.getElementById('nuevoCodigo').value.trim(),
+                descripcion: document.getElementById('nuevaDescripcion').value.trim(),
+                cantidad: Number(document.getElementById('nuevoStock').value),
+                ubicacion: document.getElementById('nuevaUbicacion').value.trim(),
+                usuario: document.getElementById('nuevoUsuario').value.trim()
+            };
+
+            fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(res => {
+                alert("¡Nuevo material agregado con éxito!");
+                document.getElementById('formNuevo').reset();
+                btn.disabled = false;
+                btn.innerText = "Registrar Nuevo Material";
+                cambiarVista('stock');
+                sincronizarDatos();
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Error al registrar el material.");
+                btn.disabled = false;
+                btn.innerText = "Registrar Nuevo Material";
+            });
+        }
+    </script>
+</body>
+</html>
